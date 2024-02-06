@@ -1,5 +1,6 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from torch import nn
 
 MODEL_DIR = "."
 model = AutoModelForCausalLM.from_pretrained(MODEL_DIR, torch_dtype="auto")
@@ -7,16 +8,15 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
 
 original_encoder_layers = model.model.layers
 
-# Extract the required layers
-idx = 20
-first_layers = original_encoder_layers[0:idx]
-last_layers = original_encoder_layers[-idx:]
-middle_layer = original_encoder_layers[idx:-idx]
 
-# Combine the layers
-new_encoder_layers = first_layers + [layer for idx, layer in enumerate(middle_layer) if idx % 2 == 0] + last_layers
+##
 
-model.model.layers = new_encoder_layers
+new_encoder_layers_list = []
+for idx, l in enumerate(original_encoder_layers):
+    if idx not in [28, 29, 27]:
+        new_encoder_layers_list.append(l)
+
+model.model.layers = nn.ModuleList(new_encoder_layers_list)
 
 model.config.num_hidden_layers = len(model.model.layers)
 

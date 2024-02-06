@@ -9,11 +9,11 @@ import matplotlib
 
 # plt.rcParams['font.sans-serif']=['Songti']
 # plt.rcParams['axes.unicode_minus']=False
-#
-# words = "<s> Write a qu iz about bits that includes the word ele ph ant".split(" ")
+
 words = "Write a quiz about bits that includes the word elephant".split(" ")
+# words = "Write a quiz about bits that includes the word elephant".split(" ")
 # words = "雷 军 还 拍了 视频 郑 重 让 网友 接受 小米 汽车的 定价 ， 搞 不懂 他的 心态 怎么 是一种 “ 大家 督促 SU 7 卖 低价 ， 成本 高 只能 高价 ” 的 状态 。 SU 7 价格 高 消费者 自然 去 选择 别的 品牌 ， 他想 卖 多少 卖 多少 ， 根本 没人 关心 他的 价格 好不好 。".split(" ")
-model = "Qwen1.5-72B"
+model = "yi_6b_up9b_300B"
 array = np.load(f"{model}.npy")
 # Transpose the array
 transposed_array = array.T
@@ -41,7 +41,7 @@ colors = ['#0077BE',  # Cerulean Blue
 
 for i in range(len(cur_array)):
     plt.plot(cur_array[i], marker='o', color=colors[i], label=f'{words[i+0]}')
-    plt.ylim(0.2, 1.0)
+    plt.ylim(0.7, 1.0)
 
 plt.title(f'{model}')
 plt.xlabel('layer_number')
@@ -57,7 +57,7 @@ plt.figure(figsize=(8, cur_array.shape[1]))
 
 for i in range(len(cur_array)):
     plt.plot(cur_array[i], marker='o', color=colors[i], label=f'{words[i+idx]}')
-    plt.ylim(0.2, 1.0)
+    plt.ylim(0.7, 1.0)
 
 plt.title(f'{model}')
 plt.xlabel('layer_number')

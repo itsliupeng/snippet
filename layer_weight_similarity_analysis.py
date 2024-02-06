@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-model = "yi_6b_base_weight"
+model = "yi_6b_base"
 array = np.load(f"{model}.npy")
 
 cur_array = np.array([array[0], array[-1]])
