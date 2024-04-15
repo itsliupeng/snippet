@@ -42,3 +42,24 @@ test_cases = [
 # Running the test cases
 results = [compute_token_overlap_simplified(*case) for case in test_cases]
 print(results)
+
+
+def extract(lds_str):
+    # 从字典中提取字符串
+    lds_str = lds_str['lds']
+
+    # 提取Pid
+    pid_start = lds_str.find('Pid: ') + len('Pid: ')
+    pid_end = lds_str.find(',', pid_start)
+    pid = int(lds_str[pid_start:pid_end])
+
+    # 提取Topic
+    topic_start = lds_str.find('Topic: ', pid_end) + len('Topic: ')
+    topic_end = lds_str.find(',', topic_start)
+    topic = int(lds_str[topic_start:topic_end])
+
+    # 提取Words
+    words_start = lds_str.find('Words: ', topic_end) + len('Words: ')
+    words = lds_str[words_start:]
+
+    return (pid, topic, words)
