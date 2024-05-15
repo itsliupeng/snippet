@@ -22,11 +22,11 @@ model2 = AutoModelForCausalLM.from_pretrained(MODEL_DIR, torch_dtype="auto")
 w1 = model1.model.embed_tokens.weight
 w2 = model2.model.embed_tokens.weight
 # rescale w2 variance to w1
-# variance1 = torch.sqrt(w1.pow(2).mean(-1, keepdim=True))
-# variance2 = torch.sqrt(w2.pow(2).mean(-1, keepdim=True))
-# w2_rescale = w2 / variance2 * variance1
-# ww = torch.cat([w1, w2_rescale], -1)
-ww = torch.cat([w1, w2], -1)
+variance1 = torch.sqrt(w1.pow(2).mean(-1, keepdim=True))
+variance2 = torch.sqrt(w2.pow(2).mean(-1, keepdim=True))
+w2_rescale = w2 / variance2 * variance1
+ww = torch.cat([w1, w2_rescale], -1)
+# ww = torch.cat([w1, w2], -1)
 new_model.model.embed_tokens.weight = nn.Parameter(ww)
 
 # lm_head
@@ -155,46 +155,65 @@ outputs2 = model2(
     output_attentions=True,
     output_hidden_states=True)
 
+for idx in range(0, 100):
+    for layer_idx in range(32):
+        w1 = model1.model.embed_tokens.weight
+        w2 = model2.model.embed_tokens.weight
+        # rescale w2 variance to w1
+        # variance1 = torch.sqrt(w1.pow(2).mean(-1, keepdim=True))
+        # variance2 = torch.sqrt(w2.pow(2).mean(-1, keepdim=True))
+        # w2_rescale = w2 / variance2 * variance1
+        # ww = torch.cat([w1, w2_rescale], -1)
+        ww = torch.cat([w1, w2], -1)
+
+        a1 = w1[idx]
+        a2 = w2[idx]
+        a = ww[idx]
+        a1 = a1.reshape([1, 1, -1])
+        a2 = a2.reshape([1, 1, -1])
+        a = a.reshape([1, 1, -1])
+
+        l1 = model1.model.layers[layer_idx]
+        l2 = model2.model.layers[layer_idx]
+        l = new_model.model.layers[layer_idx]
+
+        b1 = l1.input_layernorm(a1)
+        b2 = l2.input_layernorm(a2)
+        b = l.input_layernorm(a)
+
+        c = l.self_attn(b)[0]
+        c1 = l1.self_attn(b1)[0]
+        c2 = l2.self_attn(b2)[0]
+
+        d = l.post_attention_layernorm(c+a)
+        d1 = l1.post_attention_layernorm(c1+a1)
+        d2 = l2.post_attention_layernorm(c2+a2)
+
+        variance1 = torch.sqrt(b1.pow(2).mean(-1, keepdim=True)).item()
+        variance2 = torch.sqrt(b2.pow(2).mean(-1, keepdim=True)).item()
+        variance = torch.sqrt(b.pow(2).mean(-1, keepdim=True)).item()
+        print(f"{idx} {layer_idx}, {variance}: {variance1} / {variance2} = {variance1/variance2}")
 
 
-for idx in range(1, 100):
-    w1 = model1.model.embed_tokens.weight
-    w2 = model2.model.embed_tokens.weight
-    # rescale w2 variance to w1
-    # variance1 = torch.sqrt(w1.pow(2).mean(-1, keepdim=True))
-    # variance2 = torch.sqrt(w2.pow(2).mean(-1, keepdim=True))
-    # w2_rescale = w2 / variance2 * variance1
-    # ww = torch.cat([w1, w2_rescale], -1)
-    ww = torch.cat([w1, w2], -1)
 
-    a1 = w1[idx]
-    a2 = w2[idx]
-    a = ww[idx]
-    a1 = a1.reshape([1, 1, -1])
-    a2 = a2.reshape([1, 1, -1])
-    a = a.reshape([1, 1, -1])
+for idx in range(32):
+    l1 = model1.model.layers[idx]
+    l2 = model2.model.layers[idx]
+    # l = new_model.model.layers[0]
 
-    l1 = model1.model.layers[0]
-    l2 = model2.model.layers[0]
-    l = new_model.model.layers[0]
+    b1 = l1.input_layernorm.weight
+    b2 = l2.input_layernorm.weight
+    # b = l.input_layernorm
 
-    b1 = l1.input_layernorm(a1)
-    b2 = l2.input_layernorm(a2)
-    b = l.input_layernorm(a)
 
-    c = l.self_attn(b)[0]
-    c1 = l1.self_attn(b1)[0]
-    c2 = l2.self_attn(b2)[0]
+    # d = l.post_attention_layernorm
+    d1 = l1.post_attention_layernorm.weight
+    d2 = l2.post_attention_layernorm.weight
 
-    d = l.post_attention_layernorm(c+a)
-    d1 = l1.post_attention_layernorm(c1+a1)
-    d2 = l2.post_attention_layernorm(c2+a2)
+    variance1 = torch.sqrt(b1.pow(2).mean(-1, keepdim=True)).item()
+    variance2 = torch.sqrt(b2.pow(2).mean(-1, keepdim=True)).item()
 
-    variance1 = torch.sqrt(d1.pow(2).mean(-1, keepdim=True)).item()
-    variance2 = torch.sqrt(d2.pow(2).mean(-1, keepdim=True)).item()
-    variance = torch.sqrt(d.pow(2).mean(-1, keepdim=True)).item()
-    print(f"{idx}, {variance}: {variance1} / {variance2} = {variance1/variance2}")
-
+    print(f"{idx}: {variance1} / {variance2} = {variance1/variance2}")
 
 
 

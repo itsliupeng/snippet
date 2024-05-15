@@ -9,6 +9,7 @@ import farmhash
 cpu_count = 4
 CHUNK_NUM = 500
 
+
 def producer(queue, file_list):
     for file_path in file_list:
         print(f"begin to read {file_path}", flush=True)
