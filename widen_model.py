@@ -92,7 +92,7 @@ ww = torch.concat([w, w+add_noise], -1)
 new_model.model.norm.weight = nn.Parameter(ww)
 
 # Save the new model
-new_model.save_pretrained("model_ds", safe_serialization=False, max_shard_size="2GB")
+new_model.save_pretrained("model_ds", safe_serialization=False, max_shard_size="10GB")
 
 # # save again to remove shared parameter
 # model = AutoModelForCausalLM.from_pretrained("model_ds", torch_dtype="auto")

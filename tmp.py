@@ -1,7 +1,7 @@
 from collections import defaultdict
 import ast
 
-# A basic tokenizer for demonstration
+# A basic tokenizer for demonstrationsp
 def simple_tokenizer(text):
     return text.split()
 
@@ -63,3 +63,18 @@ def extract(lds_str):
     words = lds_str[words_start:]
 
     return (pid, topic, words)
+
+
+
+import torch
+import os
+files = os.listdir('.')
+for x in files[:]:
+    file_path = os.path.join(x, "model_optim_rng.pt")
+    print(file_path)
+    m = torch.load(file_path, "cpu")
+    m['opt_param_scheduler']['num_steps'] = 44000 * 1024
+    torch.save(m, file_path)
+
+
+
