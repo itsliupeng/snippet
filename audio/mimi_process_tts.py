@@ -20,6 +20,8 @@ SAMPLE_RATE = 24000
 
 import torchaudio
 import torchaudio.transforms as T
+from moshi.models import loaders
+import re
 
 # 在模块级别定义全局变量
 from functools import lru_cache
@@ -99,6 +101,7 @@ def deconstruct_tensor(codes):
     ], dim=0)
     return codes_tensor
 
+
 def process_json_file(transcript_file, output_tar_prefix, gpu_id):
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
     snacmodel = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval().cuda()
@@ -107,27 +110,106 @@ def process_json_file(transcript_file, output_tar_prefix, gpu_id):
     with torch.inference_mode():
         with wds.TarWriter(output_tar) as writer:
             count = 0
-            for line in open(transcript_file, encoding='utf-8'):
-                j = json.loads(line.strip())
-                wav_file = j['wav']
-                text = j['refined']
-                # audio = load_audio_torchaudio(wav_file)
-                audio = load_audio(wav_file)[:SAMPLE_RATE*40]  # 最长 40s
+            try:
+                with open(transcript_file, "rb") as file:
+                    for byte_line in file:
+                        try:
+                            try:
+                                line = byte_line.decode('utf-8', errors='strict')
+                            except UnicodeDecodeError as e:
+                                print(f"Decoding failed: {e}")
+                                continue
 
-                audio_name = "/".join(wav_file.split("/")[-3:])
+                            j = line.strip().split("\t")
+                            if len(j) != 2 or j[0] == 'text': # header
+                                continue
 
-                audio = torch.from_numpy(audio).unsqueeze(0).unsqueeze(0).cuda()
-                codes = snacmodel.encode(audio)
-                codes_tensor = deconstruct_tensor(codes)
+                            wav_file = j[1]
+                            text = j[0]
+                            # audio = load_audio_torchaudio(wav_file)
+                            audio = load_audio(wav_file)[:SAMPLE_RATE*40]  # 最长 40s
 
-                sample = {'text': text,
-                          'codec_label.npy': codes_tensor.numpy().tobytes(),
-                          "__key__": audio_name}
-                writer.write(sample)
+                            audio_name = "/".join(wav_file.split("/")[-3:])
+
+                            audio = torch.from_numpy(audio).unsqueeze(0).unsqueeze(0).cuda()
+                            codes = snacmodel.encode(audio)
+                            codes_tensor = deconstruct_tensor(codes)
+
+                            sample = {'text': text,
+                                      'codec_label.npy': codes_tensor.numpy().tobytes(),
+                                      "__key__": audio_name}
+                            writer.write(sample)
+                        except Exception as e:
+                            print(f"Exception {e} for line {line}")
+                            continue
+            except Exception as e:
+                print(f"Exception {e} for file {transcript_file}")
+
 
                 count += 1
                 if count % 1000 == 0:
                     print(f"Processed {count} samples from {transcript_file} into {output_tar}")
+
+
+def process_json_file(transcript_file, output_tar_prefix, gpu_id):
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+    # snacmodel = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval().cuda()
+    mimi_weight = "/lp/models/moshiko-pytorch-bf16/tokenizer-e351c8d8-checkpoint125.safetensors"
+    mimi = loaders.get_mimi(mimi_weight, device='cuda')
+    mimi.set_num_codebooks(8)  # up to 32 for mimi, but limited to 8 for moshi.
+
+    output_tar = f"{output_tar_prefix}_{os.path.basename(transcript_file)}.tar"
+    print(f"load model on gpu_id {gpu_id} with tar ${transcript_file}", flush=True)
+
+    with torch.inference_mode():
+        with wds.TarWriter(output_tar) as writer:
+            count = 0
+            try:
+                with open(transcript_file, "rb") as file:
+                    for byte_line in file:
+                        try:
+                            try:
+                                line = byte_line.decode('utf-8', errors='strict')
+                            except UnicodeDecodeError as e:
+                                print(f"Decoding failed: {e}")
+                                continue
+
+                            j = line.strip().split("\t")
+                            if len(j) != 2 or j[0] == 'text':  # header
+                                continue
+
+                            wav_file = j[1]
+                            text = j[0]
+                            # audio = load_audio_torchaudio(wav_file)
+                            audio = load_audio(wav_file)[:SAMPLE_RATE*40]  # 最长 40s
+
+                            audio_name = "/".join(wav_file.split("/")[-4:])
+                            match = re.search(r'quora_xttsv2_([a-zA-Z]+_[a-zA-Z]+)/', wav_file)
+                            if match:
+                                xx_xx = match.group(1)  # 获取匹配的 xx_xx
+                                speaker = xx_xx.replace('_', ' ')  # 将 "_" 替换为 " "
+                            else:
+                                speaker = "cosyvoice_中文女"
+
+                            audio = torch.from_numpy(audio).unsqueeze(0).unsqueeze(0).cuda()
+                            codes = mimi.encode(audio).cpu().numpy()[0]
+
+                            sample = {'text': text,
+                                      'codec_label.npy': codes.tobytes(),
+                                      'speaker': speaker,
+                                      "__key__": audio_name}
+                            writer.write(sample)
+
+                            count += 1
+                            if count % 1000 == 0:
+                                print(f"Processed {count} samples from {transcript_file} into {output_tar}")
+                        except Exception as e:
+                            print(f"Exception {e} for line {line}")
+                            continue
+            except Exception as e:
+                print(f"Exception {e} for file {transcript_file}")
+
+
 
 def write_webdataset(json_file_list, output_tar_prefix, num_processes):
     # Get the number of available CPU cores
@@ -164,7 +246,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--output_tar_prefix',
         type=str,
-        default='webdataset/librilight',
+        default='webdataset/mimi_librilight',
         help='Output path and tar file prefix for the generated WebDataset.'
     )
 
@@ -191,7 +273,7 @@ if __name__ == '__main__':
 
     # Get list of JSON files in the current directory
     # transcript_data_dir = "/lp/dataset/audio_data/librilight_processed/jsonl_splits"
-    ts_files = list(map(lambda x: os.path.join(transcript_data_dir, x), filter(lambda x: x.endswith(".jsonl"), os.listdir(transcript_data_dir))))
+    ts_files = list(map(lambda x: os.path.join(transcript_data_dir, x), os.listdir(transcript_data_dir)))
     ts_files = sorted(ts_files)
 
     # Create output path and tar file prefix

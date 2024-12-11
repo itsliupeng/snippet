@@ -252,3 +252,28 @@ model.save_pretrained("model_ds", safe_serialization=False)
 model = AutoModelForCausalLM.from_pretrained("model_ds", torch_dtype="auto")
 model.save_pretrained("model_ds_A", safe_serialization=False)
 """
+
+
+A = 4096
+B = 8192
+C = 2048
+
+x = torch.rand(1, 1, A, dtype=torch.bfloat16, requires_grad=False)
+U = torch.rand(B, A, dtype=torch.bfloat16, requires_grad=False)
+V = torch.rand(C, B, dtype=torch.bfloat16, requires_grad=False)
+
+x1 = torch.matmul(x, U.T)
+x2 = torch.matmul(x1, V.T)
+print(x.shape, x1.shape, x2.shape)
+
+# 加宽
+xx = x
+UU = torch.concat([U, U], dim=0)
+VV = torch.concat([V, V], dim=-1) / 2
+
+xx1 = torch.matmul(xx, UU.T)
+xx2 = torch.matmul(xx1, VV.T)
+print(xx.shape, xx1.shape, xx2.shape)
+
+
+torch.allclose(x2, xx2)
