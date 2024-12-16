@@ -8,7 +8,8 @@ os.environ['RANK'] = '0'
 os.environ.pop('SLURM_PROCID', None)
 
 # Define the path to the .tar file
-dataset_path = "/lp/pretrain_audio_data/webdataset/quora_xttsv2/quora_xttsv2_part_aa.tar"
+# dataset_path = "/lp/pretrain_audio_data/webdataset/quora_xttsv2/quora_xttsv2_part_aa.tar"
+dataset_path = "zhihu_cosyvoice_part_050.tar"
 dataset = wds.WebDataset(dataset_path)
 raw = next(iter(dataset))
 

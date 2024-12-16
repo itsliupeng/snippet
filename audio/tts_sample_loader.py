@@ -12,7 +12,7 @@ def sample_loader(raw: dict) -> dict:    # Note: Images are already decoded to t
         xx_xx = match.group(1)  # 获取匹配的 xx_xx
         speaker = xx_xx.replace('_', ' ')  # 将 "_" 替换为 " "
     else:
-        speaker = None
+        speaker = ""
 
     return dict(
         text=raw["wav.text"],  # expected type: typing.Optional[str], default: None

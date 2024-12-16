@@ -1,22 +1,14 @@
-import webdataset as wds
-import json
-import os
-from functools import lru_cache
-from subprocess import CalledProcessError, run
-from typing import Optional, Union
-import numpy as np
-import io
-import base64
-from multiprocessing import Pool, cpu_count, set_start_method
-from collections import defaultdict
-import whisper
-import soundfile as sf
-import torch
-from snac import SNAC
-
 import argparse
 import os
+import re
+from multiprocessing import Pool
 from multiprocessing import set_start_method
+from subprocess import CalledProcessError, run
+
+import numpy as np
+import torch
+import webdataset as wds
+from snac import SNAC
 
 SAMPLE_RATE = 24000
 
@@ -89,7 +81,15 @@ def process_json_file(transcript_file, output_tar_prefix, gpu_id):
                             # audio = load_audio_torchaudio(wav_file)
                             audio = load_audio(wav_file)[:SAMPLE_RATE*40]  # 最长 40s
 
-                            audio_name = "/".join(wav_file.split("/")[-3:])
+                            audio_name = "/".join(wav_file.split("/")[-4:])
+
+                            match = re.search(r'quora_xttsv2_([a-zA-Z]+_[a-zA-Z]+)/', wav_file)
+                            if match:
+                                xx_xx = match.group(1)  # 获取匹配的 xx_xx
+                                speaker = xx_xx.replace('_', ' ')  # 将 "_" 替换为 " "
+                            else:
+                                speaker = "cosyvoice_中文女"
+
 
                             audio = torch.from_numpy(audio).unsqueeze(0).unsqueeze(0).cuda()
                             codes = snacmodel.encode(audio)
@@ -97,18 +97,18 @@ def process_json_file(transcript_file, output_tar_prefix, gpu_id):
 
                             sample = {'text': text,
                                       'codec_label.npy': codes_tensor.numpy().tobytes(),
+                                      'speaker': speaker,
                                       "__key__": audio_name}
                             writer.write(sample)
+
+                            count += 1
+                            if count % 1000 == 0:
+                                print(f"Processed {count} samples from {transcript_file} into {output_tar}")
                         except Exception as e:
                             print(f"Exception {e} for line {line}")
                             continue
             except Exception as e:
                 print(f"Exception {e} for file {transcript_file}")
-
-
-            count += 1
-            if count % 1000 == 0:
-                print(f"Processed {count} samples from {transcript_file} into {output_tar}")
 
 def write_webdataset(json_file_list, output_tar_prefix, num_processes):
     # Get the number of available CPU cores
