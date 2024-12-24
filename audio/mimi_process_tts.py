@@ -5,6 +5,7 @@ from subprocess import CalledProcessError, run
 import numpy as np
 import torch
 import webdataset as wds
+import re
 
 SAMPLE_RATE = 24000
 
@@ -56,11 +57,12 @@ def process_json_file(transcript_file, output_tar_prefix, gpu_id, start_line_no)
                         if True:
                             j = json.loads(line)
                             wav_file = j['wav']
+                            wav_file = re.sub(r'(?<!_\d{8}_)\b' + '20241129' + r'\b', "20241129_20241202", wav_file, count=1)
                             text = j['refined']
+                        try:
                             audio = load_audio(wav_file)[:SAMPLE_RATE * 163]  # 最长 40s
                             audio_name = "/".join(wav_file.split("/")[-4:])
-                            speaker = "yunting"
-                        try:
+                            speaker = "spotify"
                             audio = torch.from_numpy(audio).unsqueeze(0).unsqueeze(0).cuda()
                             codes = mimi.encode(audio).cpu().numpy()[0]
                         except Exception as e:

@@ -1,46 +1,50 @@
-import json
-import glob
-from langdetect import detect
-from multiprocessing import Pool, cpu_count
+import os
+import sys
 
 
-def process_line(line):
-    line = line.strip()
-    if not line:
-        return None
-    try:
-        data = json.loads(line)
-        # Perform language detection on the 'refined' field
-        if 'refined' in data:
-            data['lang'] = detect(data['refined'])
-        return data
-    except:
-        return None
+def gen_list(root_dirs, done_dirs, todo_file, done_file):
+    todo, done = 0, 0
+    with open(todo_file, 'w') as o1:
+        with open(done_file, 'w') as o2:
+            for root_dir in root_dirs:
+                for dirpath, dirnames, filenames in os.walk(root_dir):
+                    if not dirnames:  # no more subdir
+                        for fname in filenames:
+                            for suffix in ['.m4a', '.mp3']:
+                                if not fname.endswith(suffix): continue
+                                outname = None
+                                for done_dir in done_dirs:
+                                    tmp = os.path.join(dirpath, fname[:-len(suffix)], 'transcription.jsonl')
+                                    output = tmp.replace(root_dir, done_dir)
+                                    if os.path.exists(output):
+                                        outname = output
+                                        break
+                                if outname:
+                                    #print(f'Existing {outname=}')
+                                    done += 1
+                                    o2.write(os.path.join(dirpath, fname) + ' -> ' + outname + '\n')
+                                else:
+                                    todo += 1
+                                    o1.write(os.path.join(dirpath, fname) + '\n')
 
-
-def process_file(input_file):
-    # Create output file name by appending '_lang' before the extension
-    output_file = "part_filter/" + input_file.split("/")[-1] + '_lang.jsonl'
-
-    with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
-        for line in infile:
-            result = process_line(line)
-            if result is not None:
-                outfile.write(json.dumps(result, ensure_ascii=False) + '\n')
-
-    return output_file
+    print(f'Wrote {todo_file}: {todo=}')
+    print(f'Wrote {done_file}: {done=}')
 
 
 if __name__ == '__main__':
-    # Get the list of all jsonl files in part_dir
-    input_files = glob.glob('part/part_*')
-
-    # Adjust the number of processes based on your system's cores
-    num_processes = min(cpu_count(), len(input_files))
-
-    with Pool(processes=num_processes) as pool:
-        results = pool.map(process_file, input_files)
-
-    print("Processing complete. Created these files:")
-    for r in results:
-        print(r)
+    gen_list(
+        ['/gpfs/public/pretrain/data/audio/spotify/stat_date=20241203/',
+         '/gpfs/public/pretrain/data/audio/spotify/stat_date=20241204/',
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241205/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241206/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241207/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241208/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241212/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241213/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241216/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241217/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241218/",
+         "/gpfs/public/mmodal/users/liupeng/data/spotify/stat_date=20241219/"
+         ],
+        ['/gpfs/public/pretrain/data/audio/spotify_processed/20241203_20241219/'],  # trailing '/' is necessary
+        'audio.todo.txt', 'audio.done.txt')
