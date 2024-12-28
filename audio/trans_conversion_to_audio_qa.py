@@ -31,7 +31,7 @@ def trans(original_json):
     return transformed_json_list
 
 input_dir = "/gpfs/public/align/caoguo/datasets/posttrain/versions/chatmls/moyi_sft_data_0927/moyi_sft_data_0914_v3_all_latest/jsonls_202404_fixed_length_with_4o"
-output_dir = "/lp/pretrain_audio_data/instruct_data"
+output_dir = "/lp/pretrain_audio_data/instruct_data/new"
 files = os.listdir(input_dir)
 for x in files:
     out_file = os.path.join(output_dir, x)
@@ -40,5 +40,6 @@ for x in files:
             j = json.loads(line.strip())
             new_j = trans(j)
             if new_j != "":
-                of.write(f"{json.dumps(new_j)}\n")
+                for item in new_j:
+                    of.write(f"{json.dumps(item)}\n")
     print(f"finished writing {x}")
