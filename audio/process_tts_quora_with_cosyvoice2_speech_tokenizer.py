@@ -13,7 +13,8 @@ import whisper
 import math
 # import torchaudio
 
-speech_tokenizer_model = "/lp/models/CosyVoice2-0.5B/speech_tokenizer_v2.onnx"
+# speech_tokenizer_model = "/lp/models/CosyVoice2-0.5B/speech_tokenizer_v2.onnx"
+speech_tokenizer_model = "/lp/models/CosyVoice2-0.5B/speech_tokenizer_v2_fp16.onnx"
 
 
 def single_job(ort_session, file):
@@ -22,6 +23,7 @@ def single_job(ort_session, file):
         speech = speech[..., : 16000 * 30]
         speech = torch.from_numpy(speech).cuda().unsqueeze(0)
         feat = whisper.log_mel_spectrogram(speech, n_mels=128)
+        feat = feat.half()
         speech_token = ort_session.run(None, {ort_session.get_inputs()[0].name: feat.detach().cpu().numpy(),
                                             ort_session.get_inputs()[1].name: np.array([feat.shape[2]], dtype=np.int32)})[0].flatten()
         return speech_token
