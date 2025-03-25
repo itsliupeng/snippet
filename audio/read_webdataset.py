@@ -9,13 +9,15 @@ os.environ.pop('SLURM_PROCID', None)
 
 # Define the path to the .tar file
 # dataset_path = "/lp/pretrain_audio_data/webdataset/quora_xttsv2/quora_xttsv2_part_aa.tar"
-dataset_path = "zhihu_cosyvoice_part_050.tar"
+# dataset_path = "zhihu_cosyvoice_part_050.tar"
+dataset_path = "_part_65.tar"
 dataset = wds.WebDataset(dataset_path)
-raw = next(iter(dataset))
+raw = next\
+    (iter(dataset))
 
 import torch
 import numpy as np
-codec_label=torch.from_numpy(np.frombuffer(raw['wav.codec_label.npy'], dtype=np.int64)).view(7, -1)
+codec_label=torch.from_numpy(np.frombuffer(raw['wav.codec_label.npy'], dtype=np.int32)).view(7, -1)
 
 
 #########################

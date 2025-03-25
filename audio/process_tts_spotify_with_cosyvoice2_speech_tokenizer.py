@@ -12,6 +12,8 @@ import onnxruntime
 import whisper
 import math
 # import torchaudio
+import json
+import re
 
 speech_tokenizer_model = "/lp/models/CosyVoice2-0.5B/speech_tokenizer_v2.onnx"
 # speech_tokenizer_model = "/lp/models/CosyVoice2-0.5B/speech_tokenizer_v2_fp16.onnx"
@@ -50,19 +52,12 @@ def process_json_file(transcript_file, output_tar_prefix, gpu_id, batch_size=16)
             audio_names_batch = []
             speakers_batch = []
             try:
-                with open(transcript_file, "rb") as file:
-                    for byte_line in file:
-                        try:
-                            line = byte_line.decode('utf-8', errors='strict')
-                        except UnicodeDecodeError as e:
-                            print(f"Decoding failed: {e}")
-                            continue
-
-                        j = line.strip().split("\t")
-                        if len(j) != 2 or j[0] == 'text':  # 跳过 header
-                            continue
-
-                        text, wav_file = j[0], j[1]
+                with open(transcript_file, "r") as file:
+                    for line in file:
+                        j = json.loads(line.strip())
+                        wav_file = j['wav']
+                        wav_file = re.sub(r'(?<!_\d{8}_)\b' + '20241129' + r'\b', "20241129_20241202", wav_file, count=1)
+                        text = j['refined']
 
                         audio_name = "/".join(wav_file.split("/")[-4:])
                         match = re.search(r'quora_xttsv2_([a-zA-Z]+_[a-zA-Z]+)/', wav_file)
@@ -70,7 +65,7 @@ def process_json_file(transcript_file, output_tar_prefix, gpu_id, batch_size=16)
                             xx_xx = match.group(1)
                             speaker = xx_xx.replace('_', ' ')
                         else:
-                            speaker = "cosyvoice_中文女"
+                            speaker = "spotify"
 
                         files_batch.append(wav_file)
                         texts_batch.append(text)
@@ -144,14 +139,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--transcript_data_dir',
         type=str,
-        default='/lp/data/sythetic_audio/quora/quora_xttsv2_meta_splits_1k/group_1',
+        default='/lp/pretrain_audio_data/spotify_processed/group_files/group_000',
         help='Directory containing JSONL transcript files.'
     )
 
     parser.add_argument(
         '--output_tar_prefix',
         type=str,
-        default='/gpfs/public/mmodal/users/liupeng/webdataset/quora_xttsv2/quora_xttsv2',
+        default='/gpfs/public/mmodal/users/liupeng/webdataset/spotify_p1/spotify_p1',
         help='Output path and tar file prefix for the generated WebDataset.'
     )
 

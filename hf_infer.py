@@ -2,29 +2,31 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # model_path = '/gpfs/public/pretrain/liupeng/code/mla/MLA_Megatron-LM/out/test_yi_6b_4m_bs1024_load_d1009_w0_banlance_loss_freeze_whisperm/test_yi_6b_4m_bs1024_load_d1009_w0_banlance_loss_freeze_whisperm/checkpoint/iter_0032000_hf'
+# model_path = "/lp/models/yi_2b_part_gmb_v8_d0503_magic/iter_0011554"
+# model_path = "/lp/models/Yi-6B"
 model_path = "."
 # Since transformers 4.35.0, the GPT-Q/AWQ model can be loaded using AutoModelForCausalLM.
-model = AutoModelForCausalLM.from_pretrained(
+llm_model = AutoModelForCausalLM.from_pretrained(
     model_path,
-    device_map="cpu",
+    device_map="cuda",
     torch_dtype=torch.bfloat16,
     trust_remote_code=True
 ).eval()
 
-raw_model = model
-model = raw_model.language_model
-# model.model.embed_tokens.weight
-#  model.lm_head.weight.sum()
+# raw_model = model
+# model = raw_model.language_model
+# # model.model.embed_tokens.weight
+# #  model.lm_head.weight.sum()
+#
+# llm_model = raw_model.language_model
 
-llm_model = raw_model.language_model
-
-tokenizer = AutoTokenizer.from_pretrained("/lp/models/Yi-6B", use_fast=False)
+tokenizer = AutoTokenizer.from_pretrained("/lp/models/yi_2b_part_gmb_v8_d0503_magic/iter_0011554", use_fast=False)
 # Prompt content: "hi"
 messages = "what's your name?"
 
 input_ids = tokenizer(messages, return_tensors='pt')['input_ids']
-output_ids = llm_model.generate(input_ids.to('cuda'), max_length=50, num_return_sequences=1)
-response = tokenizer.decode(output_ids[0].tolist(), skip_special_tokens=True)
+output_ids = llm_model.generate(input_ids.to('cuda'), max_length=16384, num_return_sequences=1)
+response = tokenizer.decode(output_ids[0].tolist(), skip_special_tokens=False)
 
 # Model response: "Hello! How can I assist you today?"
 print(response)

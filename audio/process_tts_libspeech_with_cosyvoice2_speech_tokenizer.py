@@ -12,6 +12,8 @@ import onnxruntime
 import whisper
 import math
 # import torchaudio
+import json
+import re
 
 speech_tokenizer_model = "/lp/models/CosyVoice2-0.5B/speech_tokenizer_v2.onnx"
 # speech_tokenizer_model = "/lp/models/CosyVoice2-0.5B/speech_tokenizer_v2_fp16.onnx"
@@ -50,70 +52,70 @@ def process_json_file(transcript_file, output_tar_prefix, gpu_id, batch_size=16)
             audio_names_batch = []
             speakers_batch = []
             try:
-                with open(transcript_file, "rb") as file:
-                    for byte_line in file:
-                        try:
-                            line = byte_line.decode('utf-8', errors='strict')
-                        except UnicodeDecodeError as e:
-                            print(f"Decoding failed: {e}")
-                            continue
+                for line in open(transcript_file):
+                    sp = line.strip().split("\t")
+                    if (len(sp) != 2):
+                        print(f"{line} format error")
+                        continue
+                    audio_name, text = sp
 
-                        j = line.strip().split("\t")
-                        if len(j) != 2 or j[0] == 'text':  # 跳过 header
-                            continue
+                    audio_name_sp = audio_name.split("_")
+                    wav_file = f'audio/{"/".join(audio_name_sp[:-1])}/{audio_name}.opus'
+                    if not os.path.exists(wav_file):
+                        print(f"{wav_file} not exist.")
+                        continue
 
-                        text, wav_file = j[0], j[1]
+                    audio_name = "/".join(wav_file.split("/")[-4:])
+                    match = re.search(r'quora_xttsv2_([a-zA-Z]+_[a-zA-Z]+)/', wav_file)
+                    if match:
+                        xx_xx = match.group(1)
+                        speaker = xx_xx.replace('_', ' ')
+                    else:
+                        speaker = "librispeech"
 
-                        audio_name = "/".join(wav_file.split("/")[-4:])
-                        match = re.search(r'quora_xttsv2_([a-zA-Z]+_[a-zA-Z]+)/', wav_file)
-                        if match:
-                            xx_xx = match.group(1)
-                            speaker = xx_xx.replace('_', ' ')
-                        else:
-                            speaker = "cosyvoice_中文女"
+                    files_batch.append(wav_file)
+                    texts_batch.append(text)
+                    audio_names_batch.append(audio_name)
+                    speakers_batch.append(speaker)
 
-                        files_batch.append(wav_file)
-                        texts_batch.append(text)
-                        audio_names_batch.append(audio_name)
-                        speakers_batch.append(speaker)
+                    # 当达到批量大小时，进行批量推理
+                    if len(files_batch) == batch_size:
+                        speech_tokens = [single_job(speech_tokenizer_session, x) for x in files_batch]
 
-                        # 当达到批量大小时，进行批量推理
-                        if len(files_batch) == batch_size:
-                            speech_tokens = [single_job(speech_tokenizer_session, x) for x in files_batch]
+                        # 写入 Tar
+                        for i in range(len(files_batch)):
+                            sample = {
+                                'text': texts_batch[i],
+                                'codec_label.npy': speech_tokens[i].tobytes(),
+                                'speaker': speakers_batch[i],
+                                "__key__": audio_names_batch[i]
+                            }
+                            writer.write(sample)
+                            count += 1
+                            if count % 10 == 0:
+                                print(
+                                    f"Processed {count * batch_size} samples from {transcript_file} into {output_tar}")
 
-                            # 写入 Tar
-                            for i in range(len(files_batch)):
-                                sample = {
-                                    'text': texts_batch[i],
-                                    'codec_label.npy': speech_tokens[i].tobytes(),
-                                    'speaker': speakers_batch[i],
-                                    "__key__": audio_names_batch[i]
-                                }
-                                writer.write(sample)
-                                count += 1
-                                if count % 10 == 0:
-                                    print(f"Processed {count * batch_size} samples from {transcript_file} into {output_tar}")
+                        # 清空批量列表
+                        files_batch = []
+                        texts_batch = []
+                        audio_names_batch = []
+                        speakers_batch = []
 
-                            # 清空批量列表
-                            files_batch = []
-                            texts_batch = []
-                            audio_names_batch = []
-                            speakers_batch = []
+                    # 处理剩余的样本
+                    if len(files_batch) > 0:
+                        speech_tokens = [single_job(speech_tokenizer_session, x) for x in files_batch]
 
-                # 处理剩余的样本
-                if len(files_batch) > 0:
-                    speech_tokens = [single_job(speech_tokenizer_session, x) for x in files_batch]
-
-                    # 写入 Tar
-                    for i in range(len(files_batch)):
-                        sample = {
-                            'text': texts_batch[i],
-                            'codec_label.npy': speech_tokens[i].tobytes(),
-                            'speaker': speakers_batch[i],
-                            "__key__": audio_names_batch[i]
-                        }
-                        writer.write(sample)
-                        count += 1
+                        # 写入 Tar
+                        for i in range(len(files_batch)):
+                            sample = {
+                                'text': texts_batch[i],
+                                'codec_label.npy': speech_tokens[i].tobytes(),
+                                'speaker': speakers_batch[i],
+                                "__key__": audio_names_batch[i]
+                            }
+                            writer.write(sample)
+                            count += 1
 
             except Exception as e:
                 print(f"Exception {e} for file {transcript_file}")
@@ -144,14 +146,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--transcript_data_dir',
         type=str,
-        default='/lp/data/sythetic_audio/quora/quora_xttsv2_meta_splits_1k/group_1',
+        default='/lp/dataset/audio_data/mls_english_opus/train/transcripts_splits_128/group_000',
         help='Directory containing JSONL transcript files.'
     )
 
     parser.add_argument(
         '--output_tar_prefix',
         type=str,
-        default='/gpfs/public/mmodal/users/liupeng/webdataset/quora_xttsv2/quora_xttsv2',
+        default='/gpfs/public/mmodal/users/liupeng/webdataset/librispeech/librispeech',
         help='Output path and tar file prefix for the generated WebDataset.'
     )
 
